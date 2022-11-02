@@ -1,13 +1,24 @@
 
-# About the project
+# Chapter 1
 
-*Write a short description about the course and add a link to your GitHub repository here. This is an R Markdown (.Rmd) file so you should use R Markdown syntax.*
+*Here I am writing a short description about the course (Or perhaps more like a few thoughts about the course). I include a link to my GitHub repository here as well. This is an R Markdown (.Rmd) file so I'll be using R Markdown syntax.*
+
+The R chunck below prints out the date and time at the time of knitting this Markdown document for no particular reason.
 
 ```{r}
-# This is a so-called "R chunk" where you can write R code.
+# This is a so-called "R chunk" where I can write my R code.
 
 date()
 
 ```
-The text continues here.
+
+Okay, so I'm feeling great and on this course I expect to learn all kinds of both interesting and useful things about Github, Markdown and reproducible research in general. Also, I learned about the course from Sisu when looking for useful and interesting courses among the ones listed suitable for my PhD degree (that is, there is a list of courses from which one needs to choose at least 10 study points in order to complete one's degree).
+
+I was pretty familiar already with the material covered in 'R for Health Data Science book' and in the 'Exercise Set 1', since I have a strong background in both statistics/data science and in R. However, I'm motivated to learn as many new tools as possible to make my research as open and reproducible as possible. I also wish to learn ways to streamline my research workflows by more fluent integration of coding, writing and publishing via Github, Markdown and R-studio. 
+
+Last but not the least, here is a link to my Github repository used during the course: 
+[My Github Repo](https://github.com/jetroant/IODS-project)
+
+
+
 

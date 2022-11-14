@@ -1,13 +1,83 @@
-# Chapter 2
 
-*Describe the work you have done this week and summarize your learning.*
-
-- Describe your work and results clearly. 
-- Assume the reader has an introductory course level understanding of writing and reading R code as well as statistical methods.
-- Assume the reader has no previous knowledge of your data or the more advanced methods you are using.
 
 ```{r}
-date()
+students2014 <- read.csv("./data/learning2014.csv")
+str(students2014)
 ```
 
-Here we go again...
+```{r, echo = FALSE}
+data_types <- sapply(students2014, class)
+```
+
+Above we have loaded the dataset to be used for this week's assignment and printed a short summary of the data. The data consists of: <br/>
+`r sum(data_types == "integer")` variables of type 'int' (`r names(data_types)[which(data_types == "integer")]`), <br/>
+`r sum(data_types == "numeric")` variables of type 'num' (`r names(data_types)[which(data_types == "numeric")]`), and <br/>
+`r sum(data_types == "character")` variables of type 'character' (`r names(data_types)[which(data_types == "character")]`).
+
+Also, there are `r dim(students2014)[1]` observations per variable and in the data are results from a survey with originally 183 respondents. Respondents were course participants and those with zero exam points from the course exam were removed from the data. The variables <code>deep</code>, <code>stra</code> and <code>surf</code> are aggregate variables constructed from multiple responses. More information on the dataset is available [here](https://www.mv.helsinki.fi/home/kvehkala/JYTmooc/JYTOPKYS3-meta.txt).
+
+Below are marginal distributions for every variable in the data, except for the variable <code>gender</code>, which is a binary variable for which `r round(100*mean(students2014$gender == "F"))`% respondents answered <code>F</code> and `r round(100*mean(students2014$gender == "M"))`% respondents answered <code>M</code>.
+
+```{r, echo = FALSE}
+par(mfrow = c(2, 3))
+hist(students2014$age, col = "peachpuff", xlab = "", main = "Age")
+hist(students2014$attitude, col = "peachpuff", xlab = "", main = "Attitude")
+hist(students2014$deep, col = "peachpuff", xlab = "", main = "Deep")
+hist(students2014$stra, col = "peachpuff", xlab = "", main = "Stra")
+hist(students2014$surf, col = "peachpuff", xlab = "", main = "Surf")
+hist(students2014$points, col = "peachpuff", xlab = "", main = "Points")
+```
+
+While marginal distributions are useful in assessing the shape of the distribution of individual variables, we may use <code>pairs</code> to draw scatter plots summarizing the pairwise dependencies between different variables.
+
+```{r, echo = FALSE}
+pairs(students2014[-which(colnames(students2014) == "gender")], 
+      gap = 0.5, oma = c(0, 0, 0, 0), pch = 20)
+```
+
+Based on quick visual assessment, there might be at least some positive correlation between <code>points</code> and <code>attitude</code>. Much of the dependencies are however not clear enough, but can be be a little difficult to read from the pairwise scatter plots. To this end we may also inspect the correlation matrix of the data (below). 
+
+```{r, echo = FALSE}
+students2014$gender_binary <- ifelse(students2014$gender == "F", 1, 0)
+print(round(cor(students2014[-which(colnames(students2014) == "gender")]), 2))
+```
+
+Above we have created coded the variable <code>gender</code> as to a binary variable which gets values equal to one if <code>gender = F</code> and otherwise zero. The correlation between points and attitude is the strongest linear dependency, as our visual assessment already suggested. 
+
+We shall take take the three variables with the largest absolute correlations with <code>points</code> as our starting point for the analysis. That is, we estimate a linear regression model with <code>points</code> as the dependent variables and three explanatory variables (<code>attitude</code>, <code>stra</code> and <code>surf</code>). The results of our regression model are summarized below (standard errors are not heteroskedasticity robust). 
+
+```{r}
+model1 <- lm(points ~ attitude + stra + surf, data = students2014)
+summary(model1)
+```
+
+Above reported t-test statistics suggest that the coefficients for <code>stra</code> and <code>surf</code> are not statistically significant from zero, as already suggested by low absolute correlations between them and <code>points</code>. To elaborate, t-test tests the null hypothesis <code>coefficient = 0</code> for every variable in the model and only the coefficient on <code>attitude</code> was found to be statistically significant (and clearly so!). 
+
+To that end, we drop both <code>stra</code> and <code>surf</code> from our regression and run the final model with <code>attitude</code> as the only explanatory variable. 
+
+```{r}
+model2 <- lm(points ~ attitude, data = students2014)
+summary(model2)
+```
+
+The intercept of the final model is estimated to be `r round(model2$coef[1], 2)`, which can be interpreted as the model predicting exam points to be that much on average for someone with <code>attitude = 0</code>. On the other hand, the more interesting coefficient on <code>attitude</code> is estimated to be `r round(model2$coef[2], 2)`, which suggests that on average, every additional point in <code>attitude</code> raises (or is associated with) `r round(model2$coef[2], 2)` point rise in exam points. The multiple R-squared for the model is around 19%, suggesting the lone explanatory model to explain that much of the variance of the model (or variation in the dependent variable <code>points</code>). 
+
+Next, we shall take a look at some visual model diagnostics and discuss a little about the assumptions of our model. Let's see the visual diagnostics first.
+
+```{r, echo = FALSE}
+plot(model2, which = 1)
+plot(model2, which = 2)
+plot(model2, which = 5)
+plot(students2014$attitude, students2014$points, 
+     ylab = "Attitude", xlab = "Points")
+abline(model2, lw = 2)
+hist(model2$residuals, col = "white", xlab = "", main = "Residuals") #col = "peachpuff"
+```
+
+Above we have plotted Residuals vs Fitted values, Normal QQ-plot, Residuals vs Leverage, <code>points</code> against <code>attitude</code> with our linear regression line going over the scatter plot and finally a histogram of the residuals. First, as both Normal QQ-plot and the histogram of residuals suggests, the residuals of the model are slightly skewed, left tail being thicker than normal, but right tail thinner. That is, residuals do not look normally distributed. Moreover, there does not seem to be too wild outliers in the data, nor are the results dominated by particular observations as suggested by relatively low maximum leverage. The residuals seem also quite homoskedastic (although debatable and probably heteroskedasticity ribust standard errors should be used just in case).
+
+Fortunately linear regression model does not require for us to assume to residuals to be normally distributed. Technically, it only needs to be assumed that the residuals have well defined fourth moments (and in this case homoskedastic). Our coefficient estimates and estimates for their standard deviation will be asymptotically correct. Also we may safely assume the residuals based on survey based data to be uncorrelated with each other. The dependence between <code>points</code> and <code>attitude</code>also seems fairly linear, as required by our model assumptions. 
+
+Thus, our model assumptions seem relatively well justified.
+
+

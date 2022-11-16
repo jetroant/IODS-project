@@ -53,6 +53,6 @@ dplyr::glimpse(alc)
 View(alc)
 
 # Finally we save the just created dataset
-write.csv(alc, "./data/alc.csv")
+write.csv(alc, "./data/alc.csv", row.names = FALSE)
 
 

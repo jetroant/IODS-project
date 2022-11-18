@@ -1,0 +1,109 @@
+
+# Chapter 3
+
+```{r}
+alc <- read.csv("./data/alc.csv")
+str(alc)
+```
+
+Above we have printed some information of the data to be used in this week's assignment, including variable names as well as data types of the variables. In total we have `r nrow(alc)` observations and `r ncol(alc)` variables. The data are student level results from a questionnaire in two Portuguese schools (secondary education) and the variables measure student achievement as well as demographic and social features. Based on this data, we shall study the relationship between alcohol consumption and some of the variables. 
+
+Of other variables than those related to alcohol consumption, we shall focus our attention on <code>higher</code>, <code>romantic</code>, <code>famrel</code> and <code>G3</code> (final grade). The working hypothesis is that the variables measuring social aspects (<code>romantic</code> and <code>famrel</code>) could be negatively correlated with alcohol consumption, whereas the variables related to ambitions and achievement (<code>higher</code> and <code>G3</code>) could as well be negatively associated with alcohol consumption, since excessive alcohol could make it more difficult to succeed in school. 
+
+For the analysis we need to encode <code>romantic</code> and <code>higher</code> (both take character values <code>yes</code> or <code>no</code>) to a binary variables taking values 1 and zero. 
+
+```{r}
+alc$romantic_binary <- ifelse(alc$romantic == "yes", 1, 0)
+alc$higher_binary <- ifelse(alc$higher == "yes", 1, 0)
+```
+
+Below we see the marginal distributions of the four explanatory variables for both <code>high_use = TRUE</code> and <code>high_use = FALSE</code>. Variable <code>high_use</code> takes values <code>TRUE</code> if the weekly alcohol consumption exceeds a certain threshold. For `r round(100*mean(alc$high_use))`% of the students in the sample <code>high_use = TRUE</code>.
+
+```{r, echo = FALSE}
+par(mfrow = c(2, 2))
+par(mar = c(2, 4, 2, 1))
+alc_high <- alc[which(alc$high_use == TRUE),]
+alc_low <- alc[which(alc$high_use == FALSE),]
+hist(as.numeric(alc_high$higher_binary), xlab = "", ylab = "", breaks = 2,
+     col = rgb(1, 0, 0, 0.5), main = "Higher (ambitions)", probability = TRUE, ylim = c(0, 2))
+hist(as.numeric(alc_low$higher_binary), breaks = 2,
+     col = rgb(0, 1, 0, 0.5), add = TRUE, probability = TRUE)
+legend("topleft", c("high_use = 1", "high_use = 0"), lwd = 3, 
+       col = c(rgb(1, 0, 0, 0.5), rgb(0, 1, 0, 0.5)), bty = "n", cex = 0.7)
+hist(alc_high$romantic_binary, xlab = "", ylab = "", breaks = 2,
+     col = rgb(1, 0, 0, 0.5), main = "Romantic", probability = TRUE)
+hist(alc_low$romantic_binary, col = rgb(0, 1, 0, 0.5), 
+     add = TRUE, probability = TRUE, breaks = 2)
+hist(alc_high$famrel, xlab = "", ylab = "", breaks = 5, ylim = c(0, 0.6),
+     col = rgb(1, 0, 0, 0.5), main = "Famrel", probability = TRUE)
+hist(alc_low$famrel, col = rgb(0, 1, 0, 0.5), 
+     add = TRUE, probability = TRUE, breaks = 5)
+hist(alc_high$G3, xlab = "", ylab = "", xlim = c(0, 20),
+     col = rgb(1, 0, 0, 0.5), main = "G3 (final grade)", probability = TRUE)
+hist(alc_low$G3, col = rgb(0, 1, 0, 0.5), add = TRUE, probability = TRUE)
+```
+
+```{r, echo = FALSE}
+alc_no_amb <- alc[which(alc$higher_binary == 0),]
+```
+
+
+The conditional marginal distributions of the variables provide preliminary support for all of our hypotheses. First, <code>higher</code> is a binary variable taking zero values only if the student is not thinking about pursuing higher education and thus reflects the educational ambitions. As suspected, among those with lower educational ambitions, high alcohol consumption is much more common. The difference might not look huge in the plot since for only `r 100 - round(100*mean(alc$higher_binary))`% of the students <code>higher = 0</code>, but among those (`r nrow(alc_no_amb)`) students high alcohol consumption was approximately twice as probable as in the rest of the data! (see table below)
+
+```{r, echo = FALSE}
+t1 <- table(alc$high_use, alc$higher_binary)
+colnames(t1) <- c("higher = 1", "higher = 0")
+rownames(t1) <- c("high_use = TRUE", "high_use = FALSE")
+t1
+```
+
+As for the next variable, whether student is in a romantic relationship does not seem to have much effect on one's alcohol consumption. However, <code>high_use = TRUE</code> seems to be slightly more common for <code>romantic = "no"</code>, as hypothesized. Good family relations (higher values of <code>famrel</code>) on the other hand seem to be clearly associated with less alcohol consumption, also as hypothesized. Finally, perhaps the most clear negative association (by visual inspection at least) is between high alcohol consumption and final grade, or educational success, which makes perfect sense, and is also as we suspected. 
+
+Next, we shall estimate a logistic regression model using the four just discussed variables as explanatory variables and <code>high_use</code> as the dependent variable. Below we have printed out the summary of our results.
+
+```{r}
+# Logistic regression model
+model <- glm(high_use ~ higher_binary + romantic_binary + famrel + G3, 
+             data = alc, family = binomial(link = "logit"))
+
+# A summary of the estimated model
+summary(model)
+
+# Odds ratios
+odds_ratios <- exp(model$coefficients)
+
+# Confidence intervals
+ci <- confint(model)
+
+# Printing out both odds ratios and their confidence intervals
+print(cbind(odds_ratios, exp(ci)))
+
+```
+
+The estimated coefficient of the logistic regression model are all negative (and equivalently, the point estimates for odds ratios less than one), and thus consistent with our hypothesis of all the included explanatory variables to be negatively associated with the high alcohol consumption. The results are however not very strong. The negative association between alcohol consumption and the first two explanatory variables (<code>romantic</code> and <code>higher</code>) is not statistically significant on any commonly used confidence levels. This comes as no surprise after the inspection of the conditional marginal distributions of those variables, where the difference between <code>high_use = TRUE</code> and <code>high_use = FALSE</code> was quite small. Also, as discussed, there were only `r nrow(alc_no_amb)` students for which <code>higher_binary = 1</code>. Hence, although the point estimate for the coefficient of <code>higher</code> (in absolute value) was actually the highest, more data would be needed to obtain statistically significant results. 
+
+On the other hand, the coefficients on <code>famrel</code> and <code>G3</code> were found to be statistically significant on a 95% level, albeit small-ish in absolute value. Based on these findings, we could say the data and the model to give some support to our hypothesis of both healthy social relations and educational ambitions to be negatively associated with high alcohol consumption. 
+
+However, as discussed, the odds ratios for the statistically significant explanatory variables were not very different from one (no predictive power) the 95% confidence intervals for those both almost including one. To make things worse, the point estimates for the statistically not significant coefficients were the largest in absolute value, hence it is very plausible there to be some over-fitting going on. The predictive performance of the model (based on those point estimates) might then not be all that amazing. Let us assess this by first printing out a 2x2 cross tabulation of predictions versus the actual values observed (see below). As a decision boundary we use the value of 50%.
+
+```{r, echo = FALSE}
+
+alc$high_use_prob <- predict(model, type = "response")
+alc$high_use_fit <- ifelse(alc$high_use_prob > 0.5, 1, 0)
+
+train_acc <- mean(alc$high_use == alc$high_use_fit)
+#train_acc # Very poor
+#mean(alc$high_use == 0) 
+
+print(table(high_use = as.numeric(alc$high_use), prediction = alc$high_use_fit))
+
+```
+
+Clearly, the model inaccurately classifies almost all of the students as <code>high_use = 0</code>. This is no surprise, since for `r 100 - round(100*mean(alc$high_use))`% of the students this is indeed the case, thus by classifying every student like this, one would already obtain a respectable (not really) accuracy rate of `r 100 - round(100*mean(alc$high_use))`%. 
+
+So does our model perform any better than such a simple guessing strategy? Unfortunately it turns out not to be the case... The accuracy rate of our model is only `r round(100*train_acc, 2)`% (`r round(100*(1 - train_acc), 2)`% training error) against the `r 100 - round(100*mean(alc$high_use))`% (`r round(100*mean(alc$high_use))`% training error) of the simple guessing strategy. 
+
+To conclude, the predictive performance of our model is poor, reflecting the weakness of our obtained results. However, the data and the model do give some support to our hypothesis of both healthy social relations and educational ambitions to be negatively associated with high alcohol consumption.
+
+
+

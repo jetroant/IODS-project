@@ -1,0 +1,179 @@
+
+# Chapter 4
+
+```{r}
+library(MASS)
+data("Boston")
+str(Boston)
+```
+
+Above we have loaded a dataset called <code>Boston</code> from the <code>MASS</code> package. The dataset consists of crime rates in various towns in Boston area, along with various other town characteristics. In total there are `r nrow(Boston)` observations (towns) and `r ncol(Boston)` variables. 
+
+Below are the marginal distributions as well as pair plots of all the variables in the data. 
+
+```{r}
+par(mfrow = c(3, 5))
+par(mar = c(3, 4, 2, 1))
+for(i in 1:ncol(Boston)) hist(Boston[,i], main = colnames(Boston)[i], xlab = "", col = "peachpuff")
+par(mfrow = c(1, 1))
+```
+
+Clearly there are a lot of irregularities in the distribution of the data. Specifically, many of the marginal distributions are seriously skewed and even multimodal. Hence, no methods assuming normality or near normality of the data should be employed here. Let us next draw a correlation plot to assess the linear dependencies between the variables. 
+
+```{r}
+library(corrplot)
+cor_matrix <- cor(Boston)
+corrplot(cor_matrix, method = "circle", type = "upper")
+```
+
+There are multiple strong, both positive and negative, correlations between many of the variables suggesting the variables do indeed have some explanatory power over each other. Below we print out the five largest positive and negative correlations in the data. 
+
+```{r}
+print_largest_correlations <- function(data, how_many = 5, negative = FALSE, digits = 2) {
+  cm <- cor(data); diag(cm) <- NA; n <- ncol(cm)
+  if(how_many > n * (n - 1) / 2) how_many <- n * (n - 1) / 2
+  cm_order <- order(cm[upper.tri(cm)])
+  largest <- ifelse(rep(negative, how_many), cm_order[1:how_many], rev(cm_order)[1:how_many])
+  strings <- c(); cors <- c()
+  count <- 1
+  for(j in 1:n) {
+    for(i in 1:n) {
+      if(i >= j) next
+      if(count %in% largest) {
+        cors <- c(cors, cor(data[,i], data[,j]))
+        strings <- c(strings, paste0("cor(", colnames(data)[i], ", ", colnames(data)[j], ") = ", 
+                   round(cors[length(cors)], digits), "\n"))
+      }
+      count <- count + 1
+    }
+  }
+  strings <- strings[order(cors, decreasing = !negative)]
+  if(!negative) cat("Largest positive correlations: \n") else cat("Largest negative correlations: \n")
+  for(i in 1:length(strings)) cat(strings[i])
+  cat("\n")
+}
+```
+
+```{r}
+print_largest_correlations(Boston)
+print_largest_correlations(Boston, negative = TRUE)
+```
+
+So we have established there to be some linear dependencies between the variables in the data, but what about non-linear dependencies? We may try to visually assess any non-linear dependencies by means of a pair plot (plotted below).
+
+```{r}
+pairs(Boston, gap = 0.5, oma = c(0, 0, 0, 0), pch = 20)
+```
+
+Visual assessment doesn't immediately reveal us any strong dependencies in addition to those linear enough for to result in correlations with high absolute values. However, some dependencies for which the correlations seemed high seem to exhibit significant non-linearities (see e.g. the relationship between <code>nox</code> and <code>dis</code>) and naive linear models might not be the best approach to model the dependencies in this data.
+
+Before diving to model fitting and further analysis, we shall do some preparations for our data. First we scale the data to have zero mean and unit variance.
+
+```{r}
+boston_scaled <- data.frame(scale(Boston))
+summary(boston_scaled)
+```
+
+We shall also replace the numerical variable <code>crim</code> (crime rates) with a categorical counterpart with four levels ("low", "med_low", "med_high", "high") using interquartiles as break points.
+
+```{r}
+bins <- quantile(boston_scaled$crim)
+crime <- cut(boston_scaled$crim, breaks = bins, include.lowest = TRUE, 
+             labels = c("low", "med_low", "med_high", "high"))
+boston_scaled$crim <- crime
+```
+
+We then divide the data to a train and test sets with a random 80/20 split. 
+
+```{r}
+# Random 80/20 split:
+# (floor(n * 0.8) returns an integer -> less ambiguous than n * 0.8, also
+#  'sample.int' slightly more efficient and less ambiguous than 'sample')
+n <- nrow(boston_scaled)
+ind <- sample.int(n,  size = floor(n * 0.8)) 
+train <- data.frame(boston_scaled[ind,], stringsAsFactors = TRUE)
+test <- data.frame(boston_scaled[-ind,], stringsAsFactors = TRUE)
+
+# Save the correct classes from test data (just in case)...
+correct_classes <- test$crim
+
+# ...after which remove the crime variable from test data:
+test$crim <- NULL
+```
+
+Then, although we have established the non-normality of the variables, we shall use something that assumes the data to follow a multinormal distribution, because why not! Linear discriminant analysis it is (LDA).
+
+```{r}
+# LDA model
+lda.fit <- MASS::lda(crim ~ ., data = train)
+
+# The function for LDA biplot arrows
+lda.arrows <- function(x, myscale = 1, arrow_heads = 0.1, color = "red", tex = 0.75, choices = c(1,2)){
+  heads <- coef(x)
+  arrows(x0 = 0, y0 = 0, 
+         x1 = myscale * heads[,choices[1]], 
+         y1 = myscale * heads[,choices[2]], col=color, length = arrow_heads)
+  text(myscale * heads[,choices], labels = row.names(heads), 
+       cex = tex, col=color, pos=3)
+}
+
+# Target classes as numeric
+classes <- as.numeric(train$crime)
+
+# Plot the LDA biplot
+plot(lda.fit, dimen = 2)
+lda.arrows(lda.fit, myscale = 1)
+```
+
+```{r}
+lda.pred <- predict(lda.fit, newdata = test)
+table(correct = correct_classes, predicted = lda.pred$class)
+```
+
+Above we have plotted our results by means of an LDA biplot and then printed out the cross tabulation of the predictions made by the model on the test data. Evidently, regardless of the violation of the LDA assumptions, LDA seems to be able to differentiate between different classes and the test error rate seems fairly low. The model has most difficulties in differentiating between categories "med_low" and "med_high" which is to be expected. None of the "low" ("high") observations is however classified as "med_high" or "high" ("med_low" or "low") which I'd say is fairly well done. 
+
+However, perhaps there are other methods that could perform even better? To that end, let us compare the results attained with LDA to those attained by means of k-means algorithm. For one, k-means algorithm does not assume the variables to follow a multivariate normal distribution so perhaps it performs better than LDA? Let us first reload and scale the data, take quick look at the distances between observations in the data, and then run the k-means algorithm first with four clusters.
+
+```{r}
+# Reload tha original data
+library(MASS)
+data("Boston")
+
+# Scale the data
+boston_scaled <- data.frame(scale(Boston))
+
+# Calculate the (Euclidean) distances of observations in the data
+dist <- dist(Boston)
+summary(dist)
+
+# Set random seed
+set.seed(42)
+
+# Run the k-means algorithm
+km <- kmeans(Boston, centers = 4)
+
+# Visualize the results with a pairplot
+pairs(Boston, col = km$cluster, gap = 0.5, oma = c(0, 0, 0, 0), pch = 20)
+```
+
+For some variables-pairs the four clusters seem to do a great job at differentiating the data (as depicted by the above pairplot), whereas for others the clusters are less clear. To that end, let us assess how the total of within cluster sum of squares (WCSS) behaves as a function of the number of clusters.
+
+```{r}
+# Set random seed
+set.seed(42)
+
+# Set the max number of clusters
+k_max <- 10
+
+# Calculate the total within sum of squares for every number of clusters
+TWCSS <- sapply(1:k_max, function(k){kmeans(Boston, k)$tot.withinss})
+
+# Visualize the results
+plot(x = 1:k_max, y = TWCSS, type = "l", xlab = "Number of Clusters", lwd = 2)
+grid()
+```
+
+The most drastic changes in TWCSS happen when two clusters are included. After that the decrease in TWCSS is still significant up to the inclusion of four clusters after which any gains are more or less marginal. The originally used four clusters might then be pretty close to the optimal number of clusters.
+
+Although we didn't really get to do comparisons of the LDA and k-means algorithm in the end, both approaches seemed to be able to fit the data quite well and interesting insights to the data could most probably be drawn with either method.
+

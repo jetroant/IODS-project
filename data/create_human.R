@@ -46,8 +46,8 @@ gii <- gii %>%
 # Join/Merge the two data sets
 human <- inner_join(hd, gii, by = "Country")
 
-# Save the data (end of Assignment 4)
-# write_csv(human, "data/human.csv")
+# Save the data as a csv-file (end of Assignment 4)
+write_csv(human, "data/human.csv")
 
 # GNI is already of type 'numeric', but even if it wouldn't be,
 # after the following line it is (start of Assignment 5)
@@ -70,8 +70,9 @@ human <- data.frame(human) # tibbles do not have rownames...
 rownames(human) <- human$Country
 human$Country <- NULL
 
-# Overwrite the old data
-write_csv(human, "data/human.csv")
+# Save the new data in RDS-format to preserve rownames
+# (one cannot save attributes such as rownames in a csv-file)
+saveRDS(human, "data/human.rds")
 
 
 

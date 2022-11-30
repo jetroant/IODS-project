@@ -1,7 +1,7 @@
 
 # Author: Jetro Anttonen
 # Date: 24.11.2022 
-# Description: Assignment 4 for IODS-course
+# Description: Assignment 4 and 5 for IODS-course
 # Metadata: 
 # (1) https://hdr.undp.org/data-center/human-development-index#/indicies/HDI
 # (2) https://hdr.undp.org/system/files/documents//technical-notes-calculating-human-development-indices.pdf
@@ -46,6 +46,32 @@ gii <- gii %>%
 # Join/Merge the two data sets
 human <- inner_join(hd, gii, by = "Country")
 
-# Save the data
+# Save the data (end of Assignment 4)
+# write_csv(human, "data/human.csv")
+
+# GNI is already of type 'numeric', but even if it wouldn't be,
+# after the following line it is (start of Assignment 5)
+human <- human %>% mutate("GNI" = as.numeric(GNI))
+
+# Keep only some of the variables
+keep <- c("Country", "Edu2.FM", "Labo.FM", "Edu.Exp", "Life.Exp", "GNI", "Mat.Mor", "Ado.Birth", "Parli.F")
+human <- select(human, one_of(keep))
+
+# Remove all the rows with missing values
+human <- human[complete.cases(human),]
+
+# Remove the last 7 rows relating to regions instead of countries
+# (see 'tail(human, 10)')
+last_row <- nrow(human) - 7
+human <- human[1:last_row,]
+
+# Country names as row names
+human <- data.frame(human) # tibbles do not have rownames...
+rownames(human) <- human$Country
+human$Country <- NULL
+
+# Overwrite the old data
 write_csv(human, "data/human.csv")
+
+
 

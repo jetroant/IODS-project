@@ -1,0 +1,149 @@
+
+# Chapter 5
+
+```{r setup, include = FALSE} 
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+
+```{r, echo = FALSE, include = FALSE}
+library(readr)
+library(dplyr)
+library(corrplot)
+library(tidyr)
+library(ggplot2)
+library(FactoMineR)
+library(factoextra)
+```
+
+```{r}
+human <- readRDS("data/human.rds")
+```
+
+```{r}
+# Pairplot
+pairs(human, gap = 0.5, oma = c(0, 0, 0, 0), pch = 20, xaxt = "n", yaxt = "n")
+
+#Correlation plot
+corrplot(cor(human), type = "upper")
+
+# Histograms of marginal distirbutions
+par(mfrow = c(3, 3))
+par(mar = c(2, 3.5, 3, 1))
+for(i in 1:ncol(human)) {
+  hist(human[,i], col = "white", main = colnames(human)[i], xlab = "", ylab = "")
+}
+par(mfrow = c(1, 1))
+```
+
+This week we will be working with the 'human' dataset orginating from the United Nations Development Programme. Above we have produced a visual summarization of our data, including a pairplot, a correlation plot and histograms of the marginal distributions of variables. Evidently, there are plenty of strong dependencies between the data `r ncol(human)`, some less linear than the others. The linear dependencies are well captured by the correlation plot whereas the less linear dependencies are made more clear by the pairplot. For instance, according to the pairplot, perhaps the strongest pairwise dependency is between <code>GNI</code> and <code>Mat.Mor</code>. While they are indeed negatively correlated, the correlation plot alone would give a false impression of only relatively modest dependency between the variables. 
+
+As all the variables have positive support, most of the marginal distributions are also relatively skewed, as expected. Only the marginal distribution of <code>Edu.Exp</code> could perhaps be approximated with a normal distribution with acceptable accuracy. Non-linear dependencies and non-normality of marginal distributions are indeed often two phenomena related to each other
+
+We shall begin our analysis of the data by performing a principal component analysis (PCA) with unnormalized data (not very smart, as we will see!). 
+
+```{r}
+# Principal component analysis (PCA)
+pca_human <- prcomp(human)
+s <- summary(pca_human)
+
+# Rounded percentages of variance captured by each component
+pca_pr <- round(100*s$importance[2, ], digits = 0)
+pc_lab <- paste0(names(pca_pr), " (", pca_pr, "%)")
+
+# Draw a biplot
+biplot(pca_human, cex = c(0.6, 0.8), col = c("grey40", "tomato"), 
+       xlab = pc_lab[1], ylab = pc_lab[2])
+
+```
+
+Evidently, the unnormalized data does not allow for meaningful analysis, but the first principal component explains `r 100 * s$importance[2, 1]`% of the variance in the data, as also illustrated by the non-informative biplot above. To this end we shall normalize the data (to have zero mean and unit variance for all variables) and repeat the principal component analysis. 
+
+```{r}
+# Normalize the data
+human_std <- scale(human)
+
+# Principal component analysis (PCA)
+pca_human <- prcomp(human_std)
+s <- summary(pca_human)
+
+# The variance in the data captured as a function of the number of components
+plot(1:ncol(s$imp), s$imp[3,] * 100, ylim = c(0, 100), ylab = "Variance Explained, %", 
+     xlab = "Number of Principal Components", type = "l", lwd = 2)
+grid()
+
+# Rounded percentages of variance captured by each component
+pca_pr <- round(100*s$importance[2,], digits = 0)
+pc_lab1 <- paste0(names(pca_pr)[1], 
+                 c(" - Quality of Life"),
+                 " (", pca_pr[1], "%)")
+pc_lab2 <- paste0(names(pca_pr)[2], 
+                 c(" - Gender Equality"),
+                 " (", pca_pr[2], "%)")
+
+# Draw a biplot
+biplot(pca_human, cex = c(0.6, 0.8), col = c("grey40", "tomato"), 
+       xlab = pc_lab1, ylab = pc_lab2, xlim = c(-0.2, 0.2))
+
+```
+
+After normalizing the data our PCA looks much better! This is obvious, as without normalizing the data, the effect of different variables to the analysis is dominated by the scales of the variables. For instance, in the case of our unnormalized data, the variance of <code>GNI</code> was orders of magnitudes larger than that of the other variables, rendering the any other variables irrelevant. 
+
+Now the first two principal components explain approximately a reasonable `r pca_pr[1]`% and `r pca_pr[2]`% of the data variability, respectively. Inspection of the biplot (or alternatively of the rotation matrix) gives us some further insights to the results. 
+
+The first component seems to capture aspects coarsely related to the quality of life (i.e. for instance health and economics related factors), as two variables related to education and the life expectancy variable are both negatively correlated with the first component, whereas adolescent birth rate as well as maternal mortality ratio are positively correlated with the component. This component alone explains a whopping `r pca_pr[1]`% of the variability of the data! 
+
+The second component seems to capture gender equality related phenomena as it is mostly correlated with female labour participation ratio and percent representation of females in parliament. This is another `r pca_pr[2]`% of the data variability explained! 
+
+We are now done for this dataset and we shall turn our attention to tea (yes, the drink) next. To that end, next we load results of questionnaire of 300 participants, in which they were asked all kinds of things tea related, and take a look at that data.
+
+```{r}
+tea <- read.csv("https://raw.githubusercontent.com/KimmoVehkalahti/Helsinki-Open-Data-Science/master/datasets/tea.csv", stringsAsFactors = TRUE)
+```
+
+```{r}
+# NB: View() does not play well with markdown documents so we have commented it out...
+# View(tea)
+
+#...we can however take a quick peek of the data in the context of this markdown 
+# document for example like this:
+str(tea)
+```
+
+Above we have printed out the first few observations of the data as well as variable names and types. In summary, there are `r ncol(tea)` variables, all except <code>age</code> of type <code>Factor</code> with two to six different levels. Also, there are obviously `r nrow(tea)` rows in the data, one observation per participant. 
+
+Next we shall visualize the data by plotting the distributions of answers to a handful of interesting questions as well as the distribution of participant ages. 
+
+```{r}
+# Create a new smaller dataset of some interesting variables
+tea_2 <- select(tea, one_of(c("breakfast", "dinner", "evening", 
+                                 "Tea", "how", "sugar", 
+                                 "where", "How", "friends")))
+
+# Shorten some names for clarity
+levels(tea_2$how) <- c("bag", "bag+unpck.", "unpck.")
+levels(tea_2$where) <- c("store", "store+shop", "shop")
+
+# Plot the variables as well as the distribution of participant ages
+pivot_longer(tea_2, cols = everything()) %>% 
+  ggplot(aes(value)) + facet_wrap("name", scales = "free") + geom_bar()
+hist(tea$age, col = "white", xlab = "Age", ylab = "", main = "")
+```
+
+Let us then run a Multiple Correspondence Analysis (MCA) on the new data with only the chosen variables. 
+
+```{r}
+# MCA
+mca <- MCA(tea_2, graph = FALSE)
+
+# Percentage of explained variance by dimensions
+fviz_screeplot(mca, addlabels = TRUE, ylim = c(0, 20))
+
+# Biplot
+fviz_mca_biplot(mca, repel = TRUE, ggtheme = theme_minimal())
+```
+
+Above we have plotted a scree plot of the percentage of explained variances by dimensions and a biplot summarizing the results of MCA. Evidently, we have not been hugely efficient in summarizing the aspects of data with fewer dimensions than in the original data, since the first two dimensions (of ten) explain only `r round(mca$eig[1, 2], 2)`% and `r round(mca$eig[2, 2], 2)`% of the total variance. 
+
+Accordingly, it is relatively difficult to tease out clear interpretation of the first two dimensions from the biplot, apart from a few clear connections between the variables. For instance, people who prefer their tea unpacked also tend to prefer tea shops instead of chain stores, which isn't a great surprise.
+
+

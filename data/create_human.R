@@ -71,7 +71,7 @@ rownames(human) <- human$Country
 human$Country <- NULL
 
 # Save the new data in RDS-format to preserve rownames
-# (one cannot save attributes such as rownames in a csv-file)
+# (one cannot save attributes such as rownames in a csv-file directly)
 saveRDS(human, "data/human.rds")
 
 

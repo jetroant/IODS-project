@@ -40,7 +40,11 @@ RATSL <- pivot_longer(RATS, cols = -c(ID, Group),
 str(BPRS); str(BPRSL)
 str(RATS); str(RATSL)
 
-# Save the data (in long format)
+# Save the data (in long format) as a csv-file...
 write_csv(BPRSL, "data/BPRSL.csv")
 write_csv(RATSL, "data/RATSL.csv")
+
+# ...but also in RDS-format (to preserve factor types)
+saveRDS(BPRSL, "data/BPRSL.rds")
+saveRDS(RATSL, "data/RATSL.rds")
 

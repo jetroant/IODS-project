@@ -1,0 +1,23 @@
+
+# Chapter 6
+
+```{r, echo = FALSE, include = FALSE}
+library(readr)
+library(dplyr)
+library(corrplot)
+library(tidyr)
+library(ggplot2)
+library(lme4)
+```
+
+Let us start the sixth week assignment by loading the datasets to be used in this weeks assignments. Note that as we have prepared the data, we have also saved it in RDS-format (as opposed to a, say, csv-file) in order for all the features of the data to be preserved (namely, categorical variables stay as factors).
+
+```{r}
+BPRSL <- readRDS("data/BPRSL.rds")
+RATSL <- readRDS("data/RATSL.rds")
+```
+
+
+
+
+

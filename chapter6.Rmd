@@ -1,6 +1,10 @@
 
 # Chapter 6
 
+```{r setup, include = FALSE} 
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+
 ```{r, echo = FALSE, include = FALSE}
 library(readr)
 library(dplyr)
@@ -17,6 +21,132 @@ BPRSL <- readRDS("data/BPRSL.rds")
 RATSL <- readRDS("data/RATSL.rds")
 ```
 
+## RATS 
+
+In first half of this week's analysis we shall replicate the analysis from Chapter 8 of *Multivariate Analysis for the Behavioral Sciences* (MABS), but using the <code>RATS</code> data (which we have loaded in long format above). The data consists of repeated measurements of weights of `r length(levels(RATSL$ID))` individual rats which are further divided into `r length(levels(RATSL$Group))` different groups. 
+
+```{r}
+ggplot(RATSL, aes(x = Time, y = Weight, linetype = ID)) +
+  geom_line() +
+  scale_linetype_manual(values = rep(1:10, times = 4)) +
+  facet_grid(. ~ Group, labeller = label_both) + 
+  theme(legend.position = "none")
+```
+
+Evidently, weights of the rats in group one are much less to begin with than those of in the other two groups. Also, rats in the last group are heavier than those in the second group, apart from one specific rat in the second group that is the heaviest of them all, and is the only one with weight greatly differing from the other rats in the same group. The figure above also clearly depicts that in general the rats have gained weight over the time of the study, some slightly more than others. 
+
+The rats with more initial weight tend to be obviously heavier throughout the study (phenomenon known as *tracking*), making the visual assessment of any treatment effects between groups quite difficult. To this end, we may standardize the data before plotting. That is, in the figure below we have standardized the rats weights to have zero mean and unit standard deviation within each group. 
+
+```{r}
+# Standardise the weights within groups
+RATSL <- RATSL %>%
+  group_by(Group) %>%
+  mutate(Weight_std = (Weight - mean(Weight))/sd(Weight) ) %>%
+  ungroup()
+
+# Replot, but with standardized weights
+ggplot(RATSL, aes(x = Time, y = Weight_std, linetype = ID)) +
+  geom_line() +
+  scale_linetype_manual(values = rep(1:10, times = 4)) +
+  facet_grid(. ~ Group, labeller = label_both) + 
+  theme(legend.position = "none")
+
+```
+
+According to the plot with standardized data, the treatment effect (the weight gained throughout the study) seems slightly smaller for rats in the second group compared to the other two groups. However, the standardizing has also made it clear that there are actually one relatively distinct individual (outlier) in each group, which might have an effect on standardization. 
+
+Perhaps plotting the within groups means would help in our visual assessment? As there is however a clear difference in the initial values between the groups, even better idea is to plot mean profiles of weight gained within groups with the associated standard errors.
+
+```{r}
+# Add variable 'Weight_gain'
+RATSL$Weight_gain <- NA
+Weight_init <- RATSL$Weight[which(RATSL$Time == 1)]
+for(i in levels(as.factor(RATSL$Time))) {
+  rows <- which(RATSL$Time == as.numeric(i))
+  RATSL$Weight_gain[rows] <- RATSL$Weight[rows] - Weight_init
+}
+
+# Summary data with mean and standard error of Weight_gain by Group and Time 
+RATSL2 <- RATSL %>%
+  group_by(Group, Time) %>%
+  summarise(mean_gain = mean(Weight_gain), se = sd(Weight_gain) / length(Weight_gain)) %>%
+  ungroup() %>%
+  group_by(Group)
+
+# Plot the weight gain mean profiles
+ggplot(RATSL2, aes(x = Time, y = mean_gain, linetype = Group, shape = Group)) +
+  geom_line() +
+  scale_linetype_manual(values = c(1, 2, 3)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = mean_gain - se, ymax = mean_gain + se, linetype = "1"), width = 0.3) +
+  scale_shape_manual(values = c(1, 2, 3)) +
+  theme(legend.position = c(0.2, 0.8)) +
+  scale_y_continuous(name = "Weight Gain +/- SE, Grams") + 
+  scale_x_continuous(name = "Time")
+```
+
+Finally, we are starting to get a clearer picture of what is going on between the groups. The rats in the second group have gained the most weight on average, while the rats from the first group have gained the least. However, we are looking at the actual weight gained in grams here and the relative weight gain in percentages might tell a different story, with respect to the first group at least. To that end let us quickly plot such a figure as well. 
+
+```{r}
+# Add variable 'Weight_rel_gain'
+RATSL$Weight_rel_gain <- NA
+Weight_init <- RATSL$Weight[which(RATSL$Time == 1)]
+for(i in levels(as.factor(RATSL$Time))) {
+  rows <- which(RATSL$Time == as.numeric(i))
+  RATSL$Weight_rel_gain[rows] <- 100 * ((RATSL$Weight[rows] - Weight_init) / Weight_init)
+}
+
+# Summary data with mean and standard error of Weight_gain by Group and Time 
+RATSL3 <- RATSL %>%
+  group_by(Group, Time) %>%
+  summarise(mean_rel_gain = mean(Weight_rel_gain), se = sd(Weight_rel_gain) / length(Weight_rel_gain)) %>%
+  ungroup() %>%
+  group_by(Group)
+
+# Plot the weight gain mean profiles
+ggplot(RATSL3, aes(x = Time, y = mean_rel_gain, linetype = Group, shape = Group)) +
+  geom_line() +
+  scale_linetype_manual(values = c(1, 2, 3)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = mean_rel_gain - se, ymax = mean_rel_gain + se, linetype = "1"), width = 0.3) +
+  scale_shape_manual(values = c(1, 2, 3)) +
+  theme(legend.position = c(0.2, 0.8)) +
+  scale_y_continuous(name = "Weight Gain +/- SE, %") + 
+  scale_x_continuous(name = "Time")
+```
+
+Indeed, if we look at the relative weight gained, the eventual mean weights in the first and third group are not statistically different from each other anymore. We may treat the the percentage-wise difference in weight gained throughout the study as our outcome of interest. To that end, let us take a closer look at the eventual relative weight gain by plotting a box plot of those values.
+
+```{r}
+# Create another summary data for the boxplot
+RATSL4 <- RATSL %>%
+  filter(Time == max(Time)) %>%
+  group_by(Group, ID) %>%
+  summarise(mean = mean(Weight_rel_gain)) %>%
+  ungroup()
+
+# Draw a boxplot of the outcome of interest versus the group (or treatment)
+ggplot(RATSL4, aes(x = Group, y = mean)) +
+  geom_boxplot() +
+  stat_summary(fun = "mean", geom = "point", shape = 23, size = 4, fill = "white") +
+  scale_y_continuous(name = "Average weight gained throughout the study, %")
+```
+
+The boxplot tells us pretty much the same story as the previous plot. Although there is plenty of variability within the groups, the rats in the second group have gained clearly more weight than the two other groups. There is also more variability in the last than in the first group, but the average gain is more or less much the same between those groups. Also, first group seems to feature a bit of an outlier, with one rat gaining somewhat more weight than the other rats within that group. However, nothing suggests that that individual not to be representative of the population of interest and we should **not** drop this individual from the data (the observation is actually within two standard deviations from the mean, hence not even much of an outlier).
+
+We may finally take a more formal approach to what is implied by our earlier visual assessments, that is has the second group really has gained more weight, by running pairwise t-tests between the groups. 
+
+```{r}
+groups <- list()
+for(i in 1:3) groups[[i]] <- RATSL4$mean[which(RATSL4$Group == i)]
+t.test(groups[[1]], groups[[2]])
+t.test(groups[[1]], groups[[3]])
+t.test(groups[[2]], groups[[3]])
+```
+
+It turns out that although the differences in means are apparent, the differences are not statistically significant with any commonly used confidence levels. P-values for tests for difference in means between the second group against the two other groups are however clearly smaller than of the test between the first and third group, as expected. The lack of statistical significant is however no surprise, since we have so few observations, with only `r length(groups[[1]])`, `r length(groups[[2]])` and `r length(groups[[3]])` individuals in each group, respectively. 
+
+## BPRS
 
 
 

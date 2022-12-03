@@ -1,10 +1,6 @@
 
 # Chapter 5
 
-```{r setup, include = FALSE} 
-knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
-```
-
 ```{r, echo = FALSE, include = FALSE}
 library(readr)
 library(dplyr)

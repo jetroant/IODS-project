@@ -1,10 +1,6 @@
 
 # Chapter 6
 
-```{r setup, include = FALSE} 
-knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
-```
-
 ```{r, echo = FALSE, include = FALSE}
 library(readr)
 library(dplyr)
@@ -14,7 +10,7 @@ library(ggplot2)
 library(lme4)
 ```
 
-Let us start the sixth week assignment by loading the datasets to be used in this weeks assignments. Note that as we have prepared the data, we have also saved it in RDS-format (as opposed to a, say, csv-file) in order for all the features of the data to be preserved (namely, categorical variables stay as factors).
+Let us start the sixth week's assignment by loading the datasets to be used in this week's assignments. Note that as we have prepared the data, we have also saved it in RDS-format (as opposed to a, say, csv-file) in order for all the features of the data to be preserved (namely, categorical variables stay as factors).
 
 ```{r}
 BPRSL <- readRDS("data/BPRSL.rds")
@@ -23,7 +19,7 @@ RATSL <- readRDS("data/RATSL.rds")
 
 ## RATS 
 
-In first half of this week's analysis we shall replicate the analysis from Chapter 8 of *Multivariate Analysis for the Behavioral Sciences* (MABS), but using the <code>RATS</code> data (which we have loaded in long format above). The data consists of repeated measurements of weights of `r length(levels(RATSL$ID))` individual rats which are further divided into `r length(levels(RATSL$Group))` different groups. 
+In the first half of this week's analysis we shall replicate the analysis from Chapter 8 of *Multivariate Analysis for the Behavioral Sciences* (MABS), but using the <code>RATS</code> data (which we have loaded in long format above). The data consists of repeated measurements of weights of `r length(levels(RATSL$ID))` individual rats which are further divided into `r length(levels(RATSL$Group))` different groups with different diets. 
 
 ```{r}
 ggplot(RATSL, aes(x = Time, y = Weight, linetype = ID)) +
@@ -148,6 +144,103 @@ It turns out that although the differences in means are apparent, the difference
 
 ## BPRS
 
+In the another half of this week's analysis we shall replicate the analysis from Chapter 9 of *Multivariate Analysis for the Behavioral Sciences* (MABS), only this time using the <code>BPRS</code> data (which we have also loaded in long format at the beginning of this chapter). The data consists of repeated measurements of 40 male subjects that were assigned randomly to one of two treatment groups. Each subject was rated weekly on the brief psychiatric rating scale (BPRS) for eight weeks and once before the treatment began. The BPRS assesses different symptoms on a scale from one to seven and is used to evaluate patients suspected of having
+schizophrenia.
 
+Let us begin the analysis by plotting the data. 
 
+```{r}
+ggplot(BPRSL, aes(x = weeks, y = bprs, linetype = subject)) +
+  geom_line() +
+  facet_grid(. ~ treatment, labeller = label_both) + 
+  theme(legend.position = "none")
+```
+
+By first impression there seems to be a modest downward trend in BPRS for both treatments over the course of the study, suggesting the treatments to be somewhat successful. There however seems to be more dispersion, or heterogeneity in responses to the treatment, in the second group than in the first, suggesting the first treatment to perhaps have a more uniform effect. 
+
+Visual assessment however gets us only so far and in what follows we shall take a more formal approach to our analysis. We shall start with a naive linear regression model and ignore the serial correlation of the observations for now. We use BPRS as the dependent variables and both the time (weeks) and the treatment group (binary) as explanatory variables.
+
+```{r}
+# Linear regression model
+BPRS_lm <- lm(bprs ~ weeks + treatment, data = BPRSL)
+
+# Print out a summary of the model
+summary(BPRS_lm)
+```
+
+The results of the linear regression model are summarized above. Evidently, there is a statistically clearly significant downward sloping time trend, which can be interpreted as the BPRS to be around 2.3 points lower every week on average. There is however no statistically significant difference in overall level of BPRS between two treatment groups. This is however by no means an optimal model to use. First, the observations are by no means independent (although conditional on the time trend they could be, under further assumptions). Second, our interest lies in the difference of the treatment effect between two groups, which we could interpret for example as different slope parameters for two groups. However, above we have assumed the groups to share the slope parameter, but have different intercept, which doesn't seem ideal given the circumstances. Moreover, different subjects have different initial scores, suggesting that individuals might have different intercepts as well. 
+
+To the latter end, let us next fit a random intercept model in which all the subjects have their own "random" intercept that follows a normal distribution. 
+
+```{r}
+# Random intercept model
+BPRS_lme1 <- lmer(bprs ~ weeks + treatment + (1 | subject), data = BPRSL, REML = FALSE)
+
+# Print out a summary of the model
+summary(BPRS_lme1)
+```
+
+The point estimates for the parameters of interest stay the same for the random intercept model as for the naive linear regression model (as they should), but letting the intercepts between subjects vary might give us smaller parameter variance (if our random intercept assumption fits the data) and potentially statistically significant results. As expected, this is however not the case here. Parameter variance, or standard errors, do get indeed smaller, but not by much and the treatments do not still differ statistically significantly from another. 
+
+Next, let us fit a model with both random intercept and slope parameters. That is, in addition to the intercept, we let the slope parameter to vary between individuals as well.
+
+```{r}
+# Random intercept and random slope model
+BPRS_lme2 <- lmer(bprs ~ weeks + treatment + (weeks | subject), data = BPRSL, REML = FALSE)
+
+# Print out a summary of the model
+summary(BPRS_lme2)
+```
+
+To our disappointment, the results do not however change much. There are no significant differences between the results of our last two models. We might still be interested in knowing which one better fits the data, that is results of which model should we report or continue working with? To this end we may take a look of log-likelihoods of the models and the associated likelihood ratio test.
+
+```{r}
+# ANOVA test on the two models
+anova(BPRS_lme1, BPRS_lme2)
+```
+
+The latter model seems to have slightly higher log-likelihood and likelihood ratio test indeed suggests the difference to be statistically significant on a 5% level (but not on a, say, 1% level). 
+
+Finally we will fit a model that, in addition to everything else, allows for time and group interactions. In practice, this way we may facilitate our earlier discussed hypothesis of different slopes between the groups. 
+
+```{r}
+# Random intercept and random slope model with time x group interactions
+BPRS_lme3 <- lmer(bprs ~ weeks + treatment + (weeks | subject) + weeks * treatment, data = BPRSL, REML = FALSE)
+
+# Print out a summary of the model
+summary(BPRS_lme3)
+```
+
+Now, according to the model with interactions the slope parameter is indeed greater in absolute value for the first treatment group, which indeed matches our earlier visual assessment. Still, the difference is only barely, or not at all, statistically significant. Computation of exact p-values for linear mixed models is not trivial, nor is it always recommended, but the t-score for the interaction term is 1.785, hence for instance approximate 95% confidence would include zero, while 90% confidence interval would not. We conclude our model thus to provide tentative support in favor of the first treatment over the second. More importantly, the effect of both treatments is statistically different from zero as indicated by the high absolute t-score for the slope. 
+
+Actually, the likelihood ratio test (below) suggests our latter model to fit the data only slightly better than the previous one, the difference being statistically significant, again, only on a 90% level, but not on the commonly used 95% level. This further corroborates the fact that we should definitely be cautious with our conclusions and most probably more data is needed to make anything but very tentative conclusion regarding the differences in success between the two treatments.
+
+```{r}
+# ANOVA test on models with and without interactions
+anova(BPRS_lme2, BPRS_lme3)
+```
+
+Last but not the least, let us plot the fitted values of the last model against the observed data to get some idea of how well the model actually fits the data (in absolute terms, that is not against some other model). Below the observed values are in red and the fitted values in blue. Clearly the model provides reasonable approximation for the first treatment group, but the model does not account for heteroskedasticity in different groups (that is different variance in different groups). For this reason, the fitted values for the second treatment group seem to be too tightly packed and some subjects fall way outside this pack of fitted values. To conclude there is still some room for improvement, but for now we leave our analysis here. 
+
+```{r}
+# Create a new data with fitted values of BPRSL instead of observed
+BPRSL_fitted <- BPRSL
+BPRSL_fitted$bprs <- predict(BPRS_lme3)
+
+# Combine the data with observed and fitted values and add new column fitted
+BPRSL$fitted <- 0
+BPRSL_fitted$fitted <- 1
+BPRSL_combined <- rbind(BPRSL, BPRSL_fitted)
+BPRSL_combined$fitted <- as.factor(BPRSL_combined$fitted)
+
+# Plot the observed values against the fitted values
+ggplot(BPRSL_combined) +
+  geom_line(aes(x = weeks, y = bprs, linetype = subject, col = fitted)) +
+  facet_grid(. ~ treatment, labeller = label_both) + 
+  theme(legend.position = "none")
+```
+
+I suppose this concludes the last assignment of this course. I hope you had a nice course, whoever you are, and I wish you happy holidays! 
+
+![](data/santa_claus.png "Happy Holidays!")
 

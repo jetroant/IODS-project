@@ -170,7 +170,18 @@ summary(BPRS_lm)
 
 The results of the linear regression model are summarized above. Evidently, there is a statistically clearly significant downward sloping time trend, which can be interpreted as the BPRS to be around 2.3 points lower every week on average. There is however no statistically significant difference in overall level of BPRS between two treatment groups. This is however by no means an optimal model to use. First, the observations are by no means independent (although conditional on the time trend they could be, under further assumptions). Second, our interest lies in the difference of the treatment effect between two groups, which we could interpret for example as different slope parameters for two groups. However, above we have assumed the groups to share the slope parameter, but have different intercept, which doesn't seem ideal given the circumstances. Moreover, different subjects have different initial scores, suggesting that individuals might have different intercepts as well. 
 
-To the latter end, let us next fit a random intercept model in which all the subjects have their own "random" intercept that follows a normal distribution. 
+To the latter end, let us next fit a random intercept model in which all the subjects have their own "random" intercept that follows a normal distribution. It is of extreme importance to note here, that although in both treatment groups there are 20 individuals, they are different individuals, hence **<code>subject</code> identifier needs to be unique over both groups** for our random intercept model to have the intended interpretation. Otherwise we would impose the same intercept for the first subject in the the first group and for tor the first subject in the second group (and so forth), even though they are entirely different individuals!
+
+```{r}
+# Construct new unique identifiers for subjects in the second treatment group
+BPRSL$subject <- ifelse(BPRSL$treatment == 1, 
+                        BPRSL$subject, 
+                        as.numeric(BPRSL$subject) + 20)
+BPRSL$subject <- as.factor(BPRSL$subject)
+
+# There are now 40 levels for subject identifier, one for each individual
+str(BPRSL)
+```
 
 ```{r}
 # Random intercept model
@@ -180,7 +191,7 @@ BPRS_lme1 <- lmer(bprs ~ weeks + treatment + (1 | subject), data = BPRSL, REML =
 summary(BPRS_lme1)
 ```
 
-The point estimates for the parameters of interest stay the same for the random intercept model as for the naive linear regression model (as they should), but letting the intercepts between subjects vary might give us smaller parameter variance (if our random intercept assumption fits the data) and potentially statistically significant results. As expected, this is however not the case here. Parameter variance, or standard errors, do get indeed smaller, but not by much and the treatments do not still differ statistically significantly from another. 
+The point estimates for the parameters of interest stay the same for the random intercept model as for the naive linear regression model (as they should), but letting the intercepts between subjects vary might give us smaller parameter variance (if our random intercept assumption fits the data) and potentially statistically significant results. As expected, this is however not quite the case here. Parameter variance for slope does get smaller, but it is vice versa for the variance of the treatment effect, hence the treatments do not still differ statistically significantly from another. 
 
 Next, let us fit a model with both random intercept and slope parameters. That is, in addition to the intercept, we let the slope parameter to vary between individuals as well.
 
@@ -192,14 +203,14 @@ BPRS_lme2 <- lmer(bprs ~ weeks + treatment + (weeks | subject), data = BPRSL, RE
 summary(BPRS_lme2)
 ```
 
-To our disappointment, the results do not however change much. There are no significant differences between the results of our last two models. We might still be interested in knowing which one better fits the data, that is results of which model should we report or continue working with? To this end we may take a look of log-likelihoods of the models and the associated likelihood ratio test.
+To our disappointment, the results do not however change much (other than the larger parameter variance for the slope, introduced by the addition of more free parameters to the model). There are no significant differences between the results of our last two models. We might still be interested in knowing which one better fits the data, that is results of which model should we report or continue working with? To this end we may take a look of log-likelihoods of the models and the associated likelihood ratio test.
 
 ```{r}
 # ANOVA test on the two models
 anova(BPRS_lme1, BPRS_lme2)
 ```
 
-The latter model seems to have slightly higher log-likelihood and likelihood ratio test indeed suggests the difference to be statistically significant on a 5% level (but not on a, say, 1% level). 
+The latter model seems to have a clearly higher log-likelihood and likelihood ratio test indeed suggests the difference to be statistically significant.
 
 Finally we will fit a model that, in addition to everything else, allows for time and group interactions. In practice, this way we may facilitate our earlier discussed hypothesis of different slopes between the groups. 
 
@@ -211,16 +222,16 @@ BPRS_lme3 <- lmer(bprs ~ weeks + treatment + (weeks | subject) + weeks * treatme
 summary(BPRS_lme3)
 ```
 
-Now, according to the model with interactions the slope parameter is indeed greater in absolute value for the first treatment group, which indeed matches our earlier visual assessment. Still, the difference is only barely, or not at all, statistically significant. Computation of exact p-values for linear mixed models is not trivial, nor is it always recommended, but the t-score for the interaction term is 1.785, hence for instance approximate 95% confidence would include zero, while 90% confidence interval would not. We conclude our model thus to provide tentative support in favor of the first treatment over the second. More importantly, the effect of both treatments is statistically different from zero as indicated by the high absolute t-score for the slope. 
+Now, according to the model with interactions the slope parameter is indeed greater in absolute value (more negative) for the first treatment group, which indeed matches our earlier visual assessment. Still, the difference is not quite statistically significant. Computation of exact p-values for linear mixed models is not trivial, nor is it always recommended, but the t-score for the interaction term is 1.35, hence for instance approximate 95% confidence interval would include zero, as would the 90% confidence interval as well. We conclude our model thus to provide only very tentative support in favor of the first treatment over the second. More importantly, the effect of both treatments is statistically different from zero as indicated by the high absolute t-score for the slope. 
 
-Actually, the likelihood ratio test (below) suggests our latter model to fit the data only slightly better than the previous one, the difference being statistically significant, again, only on a 90% level, but not on the commonly used 95% level. This further corroborates the fact that we should definitely be cautious with our conclusions and most probably more data is needed to make anything but very tentative conclusion regarding the differences in success between the two treatments.
+Actually, the likelihood ratio test (below) suggests our latter model to fit the data only slightly better than the previous one, the difference not even being statistically significant. This further corroborates the fact that we should definitely be cautious with our conclusions and most probably more data is needed to make anything but very tentative conclusions regarding the differences in success between the two treatments.
 
 ```{r}
 # ANOVA test on models with and without interactions
 anova(BPRS_lme2, BPRS_lme3)
 ```
 
-Last but not the least, let us plot the fitted values of the last model against the observed data to get some idea of how well the model actually fits the data (in absolute terms, that is not against some other model). Below the observed values are in red and the fitted values in blue. Clearly the model provides reasonable approximation for the first treatment group, but the model does not account for heteroskedasticity in different groups (that is different variance in different groups). For this reason, the fitted values for the second treatment group seem to be too tightly packed and some subjects fall way outside this pack of fitted values. To conclude there is still some room for improvement, but for now we leave our analysis here. 
+Last but not the least, let us plot the fitted values of the last model against the observed data to get some idea of how well the model actually fits the data (in absolute terms, that is not against some other model). Below the observed values are in red and the fitted values in blue. Clearly the model provides reasonable approximation especially for the first treatment group, but misses some features more prominent in the second group. Namely, the initially mostly negative slope for some subjects seems to reverse during the treatment and turn positive as the study progresses (indicating a failure of treatment for some subjects) and the model fails to provide a reasonable approximation for these subjects. To conclude, there is still some room for improvement, but for now we leave our analysis here. 
 
 ```{r}
 # Create a new data with fitted values of BPRSL instead of observed
@@ -236,6 +247,7 @@ BPRSL_combined$fitted <- as.factor(BPRSL_combined$fitted)
 # Plot the observed values against the fitted values
 ggplot(BPRSL_combined) +
   geom_line(aes(x = weeks, y = bprs, linetype = subject, col = fitted)) +
+  scale_linetype_manual(values = rep(1:10, times = 4)) +
   facet_grid(. ~ treatment, labeller = label_both) + 
   theme(legend.position = "none")
 ```
